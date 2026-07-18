@@ -11,6 +11,10 @@ This project provides a comprehensive dashboard for analyzing retail sales data 
 The dashboard is designed to support data-driven decision-making by transforming raw transactional data into meaningful business insights.
 
 ---
+## Live Demo
+
+(https://salesanalytics-dashboard.streamlit.app)
+
 
 ## Features
 
