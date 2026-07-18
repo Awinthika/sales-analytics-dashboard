@@ -1,6 +1,5 @@
 import streamlit as st
 
-
 from data_loader import load_data
 from preprocessing import clean_data, feature_engineering
 from analytics import calculate_kpis
@@ -15,10 +14,21 @@ from visualizations import (
     sales_by_state_chart,
     discount_profit_chart,
 )
+from forecasting import (
+    prepare_forecast_data,
+    train_prophet_model,
+    generate_forecast,
+    forecast_chart,
+    forecast_insights,
+    evaluate_model,
+    split_time_series,
+)
+
 st.set_page_config(
     page_title="Sales Analytics Dashboard",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 st.title("📊 Sales Analytics Dashboard")
@@ -31,12 +41,6 @@ df = load_data()
 df = clean_data(df)
 df = feature_engineering(df)
 
-st.set_page_config(
-    page_title="Sales Analytics Dashboard",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 st.sidebar.header("🔍 Filters")
 years = sorted(df["Order Year"].unique())
 
@@ -62,7 +66,39 @@ selected_segment = st.sidebar.selectbox(
     "Select Segment",
     options=["All"] + segments
 )
+forecast_period = st.sidebar.selectbox(
+    "Forecast Period",
+    options=[6, 12, 24],
+    index=1
+)
+
 filtered_df = df.copy()
+forecast_df = prepare_forecast_data(df)
+train_df, test_df = split_time_series(forecast_df)
+model = train_prophet_model(train_df)
+forecast = generate_forecast(
+    model,
+    periods=len(test_df)
+)
+mae, rmse = evaluate_model(
+    test_df,
+    forecast
+)
+final_model = train_prophet_model(forecast_df)
+forecast = generate_forecast(
+    final_model,
+    periods=forecast_period
+)
+forecast_fig = forecast_chart(
+    forecast_df,
+    forecast
+)
+insights = forecast_insights(
+    forecast_df,
+    forecast
+)
+
+
 if selected_year != "All":
     filtered_df = filtered_df[
         filtered_df["Order Year"] == selected_year
@@ -184,4 +220,94 @@ st.sidebar.download_button(
     data=csv,
     file_name="filtered_sales_data.csv",
     mime="text/csv",
+)
+forecast_csv = forecast.to_csv(index=False)
+
+st.download_button(
+    "📥 Download Forecast",
+    forecast_csv,
+    "sales_forecast.csv",
+    "text/csv"
+)
+
+st.divider()
+
+st.subheader("📈 Sales Forecast")
+
+st.plotly_chart(
+    forecast_fig,
+    use_container_width=True
+)
+
+st.divider()
+
+st.subheader("📋 Forecast Insights")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "Expected Growth",
+        f"{insights['growth']:.2f}%"
+    )
+
+    st.success(
+        f"Highest Forecasted Sales: "
+        f"${insights['highest_sales']:,.2f}"
+    )
+
+    st.write(
+        insights["highest_month"].strftime("%B %Y")
+    )
+
+with col2:
+
+    st.error(
+        f"Lowest Forecasted Sales: "
+        f"${insights['lowest_sales']:,.2f}"
+    )
+
+    st.write(
+        insights["lowest_month"].strftime("%B %Y")
+    )
+
+    if insights["growth"] > 20:
+        st.success(
+            "Strong growth expected. Consider increasing inventory and staffing."
+    )
+
+    elif insights["growth"] > 0:
+        st.info(
+            "Moderate growth expected. Continue current sales strategy."
+        )
+
+    else:
+        st.warning(
+            "Sales may decline. Review pricing, promotions, and inventory."
+        )
+st.divider()
+
+st.subheader("📊 Model Performance")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "MAE",
+        f"{mae:,.2f}"
+    )
+
+with col2:
+    st.metric(
+        "RMSE",
+        f"{rmse:,.2f}"
+    )
+
+st.caption(
+    "Lower MAE and RMSE indicate better forecasting accuracy."
+)
+st.divider()
+
+st.caption(
+    "Built with Python • Streamlit • Pandas • Plotly • Prophet • Scikit-learn"
 )
